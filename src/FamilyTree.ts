@@ -1,14 +1,25 @@
 import { fabric } from 'fabric';
 import imgUrl from './assets/images/profile_icon.png';
 
-export interface Node {
+const fontSize = 14;
+const minimumDistanceBetweenNodes = 100;
+const verticalDistanceBetweenNodes = 100;
+const nodeRadius = 18;
+
+export interface Partner {
+  id: number;
   name: string;
-  patners: [
-    {
-      name: string;
-      children: [Node];
-    }
-  ];
+  isMarried: boolean;
+  children: Node[];
+  _object?: fabric.Group;
+}
+
+export interface Node {
+  id: number;
+  name: string;
+  generation: number;
+  partners: Partner[];
+  _object?: fabric.Group;
 }
 
 export default class FamilyTree {
@@ -16,7 +27,7 @@ export default class FamilyTree {
   canvas;
 
   constructor(data: Node) {
-    this.data = data;
+    this.data = JSON.parse(JSON.stringify(data));
     this.canvas = new fabric.Canvas('canvas', {
       width: 800,
       height: 800,
@@ -31,7 +42,10 @@ export default class FamilyTree {
     });
   };
 
-  _setImageSrc = async (imageObject: fabric.Image, imageUrl: string) => {
+  _setImageSrc = async (
+    imageObject: fabric.Image,
+    imageUrl: string
+  ): Promise<fabric.Image> => {
     return new Promise((resolve, reject) => {
       imageObject.setSrc(
         imageUrl,
@@ -51,17 +65,12 @@ export default class FamilyTree {
     });
   };
 
-  _createNode = async (
-    left: number,
-    top: number,
-    text: string,
-    fontSize: number
-  ) => {
+  _createNode = async (text: string) => {
     let imageObject = this._createImageObject(imgUrl);
     imageObject = await this._setImageSrc(imageObject, imgUrl);
 
     const textObject = new fabric.Text(text, {
-      fontSize,
+      fontSize: fontSize,
       originX: 'center',
       originY: 'center',
       top: imageObject.getBoundingRect().height / 2 + fontSize,
@@ -70,46 +79,88 @@ export default class FamilyTree {
     const group = new fabric.Group([imageObject, textObject], {
       originX: 'center',
       originY: 'center',
-      left,
-      top,
       selectable: false,
     });
     return group;
   };
 
-  _connectNodes = (
-    node1: fabric.Circle,
-    node2: fabric.Circle,
-    stroke: string,
-    strokeWidth: number
-  ) => {
-    // Connect the circle boundaries with a line
+  _connectNodes = (node1: fabric.Circle, node2: fabric.Circle) => {
+    const node1Center = node1.getCenterPoint();
+    const node2Center = node2.getCenterPoint();
     const line = new fabric.Line(
-      [node1.left, node1.top, node2.left, node2.top],
+      [
+        node1Center.x + nodeRadius,
+        node1Center.y - nodeRadius,
+        node2Center.x - nodeRadius,
+        node2Center.y - nodeRadius,
+      ],
       {
-        stroke,
-        strokeWidth,
+        stroke: 'black',
+        strokeWidth: 3,
         selectable: false,
         evented: false,
       }
     );
-    this.canvas.add(line);
+    return line;
   };
 
-  draw = async () => {
-    const canvasCenter = this.canvas.getCenter();
-    const nodeObject = await this._createNode(
-      canvasCenter.left,
-      50,
-      this.data.name,
-      14
+  _connectChild = (child: fabric.Group, relation: fabric.Line) => {
+    const relationCenter = relation.getCenterPoint();
+    const childCenter = child.getCenterPoint();
+    const line = new fabric.Line(
+      [
+        relationCenter.x,
+        relationCenter.y,
+        childCenter.x,
+        childCenter.y - nodeRadius * 2,
+      ],
+      {
+        stroke: 'black',
+        strokeWidth: 3,
+        selectable: false,
+        evented: false,
+      }
     );
-    // const patner = createNode("green", 400, 200);
-    // connectNodes(root, patner, "blue", 2);
-    // const child = createNode("blue", 400, 350);
-    // connectNodes(patner, child, "blue", 2);
+    return line;
+  };
+
+  _drawNode = async (node: Node) => {
+    const canvasCenter = this.canvas.getCenter();
+    // Create node
+    const nodeObject = await this._createNode(node.name);
+    node._object = nodeObject;
+    const partners = node.partners;
+
+    let left = canvasCenter.left;
+    const top =
+      node.generation == 0
+        ? minimumDistanceBetweenNodes
+        : node.generation * verticalDistanceBetweenNodes;
+    nodeObject.set({ left, top });
     this.canvas.add(nodeObject);
-    // canvas.add(patner);
-    // canvas.add(child);
+
+    // Create partners
+    if (partners && partners.length > 0) {
+      for (const partner of node.partners) {
+        const parnterNode = await this._createNode(partner.name);
+        partner._object = parnterNode;
+        parnterNode.set({ left, top });
+        this.canvas.add(parnterNode);
+
+        // Create children
+        if (partner.children && partner.children.length > 0) {
+          for (const child of partner.children) {
+            await this._drawNode(child);
+          }
+        }
+      }
+    }
+  };
+
+  drawTree = async () => {
+    // Recursively draw nodes
+    await this._drawNode(this.data);
+
+    this.canvas.renderAll();
   };
 }
