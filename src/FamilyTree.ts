@@ -201,10 +201,11 @@ export default class FamilyTree {
   _drawChildLine = (child: Node, parentLine: fabric.Line) => {
     const childObject = child._object as fabric.Group;
     const childCenter = childObject.getCenterPoint();
+    const strokeWidth = parentLine.strokeWidth ? parentLine.strokeWidth : 0;
     const horizontalLine = new fabric.Line(
       [
         (parentLine.x2 as number) +
-          (parentLine.strokeWidth ? parentLine.strokeWidth : 0),
+          ((parentLine.x2 as number) > childCenter.x ? strokeWidth : 0),
         parentLine.y2 as number,
         childCenter.x,
         parentLine.y2 as number,
