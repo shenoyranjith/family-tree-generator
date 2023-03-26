@@ -13,6 +13,7 @@ export interface Partner {
   children: Node[];
   _object?: fabric.Group;
   _relation?: fabric.Line;
+  _parentLine?: fabric.Line;
 }
 
 export interface Node {
@@ -21,7 +22,15 @@ export interface Node {
   generation: number;
   partners: Partner[];
   _object?: fabric.Group;
+  _childLine: fabric.Group;
 }
+
+const lineStyles = {
+  stroke: 'black',
+  strokeWidth: 3,
+  selectable: false,
+  evented: false,
+};
 
 export default class FamilyTree {
   root;
@@ -85,7 +94,7 @@ export default class FamilyTree {
     return group;
   };
 
-  _connectPartners = (node1: fabric.Group, node2: fabric.Group) => {
+  _drawPartnerLine = (node1: fabric.Group, node2: fabric.Group) => {
     const node1Center = node1.getCenterPoint();
     const node2Center = node2.getCenterPoint();
     const line = new fabric.Line(
@@ -95,34 +104,51 @@ export default class FamilyTree {
         node2Center.x - nodeRadius,
         node2Center.y - nodeRadius,
       ],
-      {
-        stroke: 'black',
-        strokeWidth: 3,
-        selectable: false,
-        evented: false,
-      }
+      lineStyles
     );
     return line;
   };
 
-  _connectChild = (child: fabric.Group, relation: fabric.Line) => {
-    const relationCenter = relation.getCenterPoint();
-    const childCenter = child.getCenterPoint();
+  _drawParentLine = (parentRelation: fabric.Line) => {
+    const parentRelationCenter = parentRelation.getCenterPoint();
     const line = new fabric.Line(
       [
-        relationCenter.x,
-        relationCenter.y,
+        parentRelationCenter.x,
+        parentRelationCenter.y,
+        parentRelationCenter.x,
+        parentRelationCenter.y + minimumDistanceBetweenNodes,
+      ],
+      lineStyles
+    );
+    return line;
+  };
+
+  _drawChildLine = (child: Node, parentLine: fabric.Line) => {
+    const childObject = child._object as fabric.Group;
+    const childCenter = childObject.getCenterPoint();
+    const horizontalLine = new fabric.Line(
+      [
+        (parentLine.x2 as number) +
+          (parentLine.strokeWidth ? parentLine.strokeWidth : 0),
+        parentLine.y2 as number,
+        childCenter.x,
+        parentLine.y2 as number,
+      ],
+      lineStyles
+    );
+    const verticalLine = new fabric.Line(
+      [
+        horizontalLine.x2 as number,
+        horizontalLine.y2 as number,
         childCenter.x,
         childCenter.y - nodeRadius * 2,
       ],
-      {
-        stroke: 'black',
-        strokeWidth: 3,
-        selectable: false,
-        evented: false,
-      }
+      lineStyles
     );
-    return line;
+    child._childLine = new fabric.Group([horizontalLine, verticalLine], {
+      selectable: false,
+    });
+    this.canvas.add(child._childLine);
   };
 
   _drawNode = async (node: Node) => {
@@ -195,18 +221,39 @@ export default class FamilyTree {
     });
   };
 
-  _drawRelations = (node: Node) => {
+  _drawPartnerRelations = (node: Node) => {
     const partners = node.partners;
     if (partners && partners.length > 0) {
       for (const partner of partners) {
-        partner._relation = this._connectPartners(
+        partner._relation = this._drawPartnerLine(
           node._object as fabric.Group,
           partner._object as fabric.Group
         );
         this.canvas.add(partner._relation);
         if (partner.children && partner.children.length > 0) {
           for (const child of partner.children) {
-            this._drawRelations(child);
+            this._drawPartnerRelations(child);
+          }
+        }
+      }
+    }
+  };
+
+  _drawChildRelations = (node: Node) => {
+    const partners = node.partners;
+    if (partners && partners.length > 0) {
+      for (const partner of partners) {
+        if (partner.children && partner.children.length > 0) {
+          partner._parentLine = this._drawParentLine(
+            partner._relation as fabric.Line
+          );
+          this.canvas.add(partner._parentLine);
+          for (const child of partner.children) {
+            this._drawChildRelations(child);
+            this._drawChildLine(
+              child as Node,
+              partner._parentLine as fabric.Line
+            );
           }
         }
       }
@@ -220,8 +267,11 @@ export default class FamilyTree {
     // Position nodes
     this._positionNodes();
 
-    // Draw relations
-    this._drawRelations(this.root);
+    // Draw partner relations
+    this._drawPartnerRelations(this.root);
+
+    // Draw child relations
+    this._drawChildRelations(this.root);
 
     this.canvas.renderAll();
   };
