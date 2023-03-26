@@ -25,6 +25,12 @@ export interface Node {
   _childLine: fabric.Group;
 }
 
+interface Canvas extends fabric.Canvas {
+  isDragging: boolean;
+  lastPosX: number;
+  lastPosY: number;
+}
+
 const lineStyles = {
   stroke: 'black',
   strokeWidth: 3,
@@ -33,17 +39,86 @@ const lineStyles = {
 };
 
 export default class FamilyTree {
-  root;
-  canvas;
+  root: Node;
+  canvas: fabric.Canvas;
 
   constructor(root: Node) {
     this.root = JSON.parse(JSON.stringify(root));
-    this.canvas = new fabric.Canvas('canvas', {
+    this.canvas = this._createCanvas();
+    this._setupCanvas();
+  }
+
+  _createCanvas = () => {
+    return new fabric.Canvas('canvas', {
       width: 800,
       height: 800,
       hoverCursor: 'pointer',
     });
-  }
+  };
+
+  _setupCanvas = () => {
+    // Setup zoom
+    // Set maximum zoom as 2000% and minimum as 1%
+    this.canvas.on('mouse:wheel', function (this: Canvas, opt) {
+      const delta = opt.e.deltaY;
+      let zoom = this.getZoom();
+      zoom *= 0.999 ** delta;
+      if (zoom > 20) {
+        zoom = 20;
+      }
+      if (zoom < 0.01) {
+        zoom = 0.01;
+      }
+      this.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+      opt.e.preventDefault();
+      opt.e.stopPropagation();
+      var vpt = this.viewportTransform as number[];
+      if (zoom < 400 / 1000) {
+        vpt[4] = 200 - (1000 * zoom) / 2;
+        vpt[5] = 200 - (1000 * zoom) / 2;
+      } else {
+        if (vpt[4] >= 0) {
+          vpt[4] = 0;
+        } else if (vpt[4] < this.getWidth() - 1000 * zoom) {
+          vpt[4] = this.getWidth() - 1000 * zoom;
+        }
+        if (vpt[5] >= 0) {
+          vpt[5] = 0;
+        } else if (vpt[5] < this.getHeight() - 1000 * zoom) {
+          vpt[5] = this.getHeight() - 1000 * zoom;
+        }
+      }
+    });
+
+    // Setup pan by dragging on pressing ctrl
+    this.canvas.on('mouse:down', function (this: Canvas, opt) {
+      var evt = opt.e;
+      if (evt.ctrlKey === true) {
+        this.isDragging = true;
+        this.selection = false;
+        this.lastPosX = evt.clientX;
+        this.lastPosY = evt.clientY;
+      }
+    });
+    this.canvas.on('mouse:move', function (this: Canvas, opt) {
+      if (this.isDragging) {
+        const e = opt.e;
+        var vpt = this.viewportTransform as number[];
+        vpt[4] += e.clientX - this.lastPosX;
+        vpt[5] += e.clientY - this.lastPosY;
+        this.requestRenderAll();
+        this.lastPosX = e.clientX;
+        this.lastPosY = e.clientY;
+      }
+    });
+    this.canvas.on('mouse:up', function (this: Canvas) {
+      // on mouse up we want to recalculate new interaction
+      // for all objects, so we call setViewportTransform
+      this.setViewportTransform(this.viewportTransform as number[]);
+      this.isDragging = false;
+      this.selection = true;
+    });
+  };
 
   _createImageObject = (imageUrl: string) => {
     return new fabric.Image(imageUrl, {
