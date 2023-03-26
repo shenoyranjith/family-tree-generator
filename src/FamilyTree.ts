@@ -12,6 +12,7 @@ export interface Partner {
   isMarried: boolean;
   children: Node[];
   _object?: fabric.Group;
+  _relation?: fabric.Line;
 }
 
 export interface Node {
@@ -23,11 +24,11 @@ export interface Node {
 }
 
 export default class FamilyTree {
-  data;
+  root;
   canvas;
 
-  constructor(data: Node) {
-    this.data = JSON.parse(JSON.stringify(data));
+  constructor(root: Node) {
+    this.root = JSON.parse(JSON.stringify(root));
     this.canvas = new fabric.Canvas('canvas', {
       width: 800,
       height: 800,
@@ -84,7 +85,7 @@ export default class FamilyTree {
     return group;
   };
 
-  _connectNodes = (node1: fabric.Circle, node2: fabric.Circle) => {
+  _connectPartners = (node1: fabric.Group, node2: fabric.Group) => {
     const node1Center = node1.getCenterPoint();
     const node2Center = node2.getCenterPoint();
     const line = new fabric.Line(
@@ -133,9 +134,8 @@ export default class FamilyTree {
 
     let left = canvasCenter.left;
     const top =
-      node.generation == 0
-        ? minimumDistanceBetweenNodes
-        : node.generation * verticalDistanceBetweenNodes;
+      minimumDistanceBetweenNodes * (node.generation + 1) +
+      node.generation * verticalDistanceBetweenNodes;
     nodeObject.set({ left, top });
     this.canvas.add(nodeObject);
 
@@ -157,9 +157,71 @@ export default class FamilyTree {
     }
   };
 
+  _groupNodes = (generations: [fabric.Group][], node: Node) => {
+    if (generations[node.generation]) {
+      generations[node.generation].push(node._object as fabric.Group);
+    } else {
+      generations[node.generation] = [node._object as fabric.Group];
+    }
+    node.partners &&
+      generations[node.generation].push(
+        ...node.partners.map(
+          (partner: Partner) => partner._object as fabric.Group
+        )
+      );
+    node.partners &&
+      node.partners.forEach((partner: Partner) => {
+        partner.children &&
+          partner.children.forEach((child: Node) => {
+            this._groupNodes(generations, child);
+          });
+      });
+  };
+
+  _positionNodes = () => {
+    let generations: [fabric.Group][] = [];
+    this._groupNodes(generations, this.root);
+    const canvasCenter = this.canvas.getCenter();
+
+    generations.forEach((generation: fabric.Group[]) => {
+      const generationWidth =
+        generation.length * generation[0].getBoundingRect().width +
+        (generation.length - 1) * minimumDistanceBetweenNodes;
+      let left = canvasCenter.left - generationWidth / 2;
+      generation.forEach((node: fabric.Group) => {
+        node.set({ left });
+        left += node.getBoundingRect().width + minimumDistanceBetweenNodes;
+      });
+    });
+  };
+
+  _drawRelations = (node: Node) => {
+    const partners = node.partners;
+    if (partners && partners.length > 0) {
+      for (const partner of partners) {
+        partner._relation = this._connectPartners(
+          node._object as fabric.Group,
+          partner._object as fabric.Group
+        );
+        this.canvas.add(partner._relation);
+        if (partner.children && partner.children.length > 0) {
+          for (const child of partner.children) {
+            this._drawRelations(child);
+          }
+        }
+      }
+    }
+  };
+
   drawTree = async () => {
     // Recursively draw nodes
-    await this._drawNode(this.data);
+    await this._drawNode(this.root);
+
+    // Position nodes
+    this._positionNodes();
+
+    // Draw relations
+    this._drawRelations(this.root);
 
     this.canvas.renderAll();
   };
