@@ -3,6 +3,8 @@ import FamilyTree, { Node } from './FamilyTree';
 const root = {
   id: 1,
   name: 'Mukundarao',
+  image:
+    'https://png.pngtree.com/png-vector/20220709/ourmid/pngtree-businessman-user-avatar-wearing-suit-with-red-tie-png-image_5809521.png',
   generation: 0,
   partners: [
     {
@@ -156,5 +158,9 @@ const root = {
     },
   ],
 } as Node;
-const familyTree = new FamilyTree(root);
+const familyTree = new FamilyTree(root, {
+  id: 'canvas',
+  width: 1000,
+  height: 1000,
+});
 familyTree.drawTree();
