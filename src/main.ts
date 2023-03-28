@@ -197,11 +197,6 @@ const root = {
           generation: 1,
           relationships: [
             {
-              partner: {
-                id: 23,
-                name: 'Test23',
-              },
-              isMarried: true,
               children: [
                 {
                   id: 24,

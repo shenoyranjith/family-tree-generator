@@ -7,8 +7,8 @@ const verticalDistanceBetweenNodes = 200;
 const nodeRadius = 64;
 
 export interface Relation {
-  partner: Node;
-  isMarried: boolean;
+  partner: Node | undefined;
+  isMarried: boolean | undefined;
   children: Node[];
   _relation?: fabric.Line;
   _parentLine?: fabric.Line;
@@ -210,16 +210,23 @@ export default class FamilyTree {
     return line;
   };
 
-  private _drawParentLine = (parentRelation: fabric.Line, isFirst: boolean) => {
-    let parentLineOrigin = parentRelation.getCenterPoint();
-    if (!isFirst) {
-      parentLineOrigin = parentLineOrigin.add(
-        new fabric.Point(
-          ((parentRelation.x2 as number) - (parentRelation.x1 as number)) / 2 -
-            nodeRadius,
-          0
-        )
-      );
+  private _drawParentLine = (
+    parent: fabric.Line | Node,
+    isFirst: boolean | undefined
+  ) => {
+    let parentLineOrigin: fabric.Point;
+    if (parent instanceof fabric.Line) {
+      parentLineOrigin = parent.getCenterPoint();
+      if (!isFirst) {
+        parentLineOrigin = parentLineOrigin.add(
+          new fabric.Point(
+            ((parent.x2 as number) - (parent.x1 as number)) / 2 - nodeRadius,
+            0
+          )
+        );
+      }
+    } else {
+      parentLineOrigin = parent._object?.getCenterPoint() as fabric.Point;
     }
     const line = new fabric.Line(
       [
@@ -228,7 +235,10 @@ export default class FamilyTree {
         parentLineOrigin.x,
         parentLineOrigin.y + verticalDistanceBetweenNodes,
       ],
-      lineStyles
+      {
+        ...lineStyles,
+        strokeDashArray: parent instanceof fabric.Line ? [] : [5, 5],
+      }
     );
     return line;
   };
@@ -293,17 +303,19 @@ export default class FamilyTree {
       });
 
       for (const relationship of node.relationships) {
-        const parnterNode = await this._createNode(
-          relationship.partner.name,
-          relationship.partner.image
-        );
-        parnterNode.on('mousedown', () => {
-          relationship.partner.onClick &&
-            relationship.partner.onClick(relationship.partner);
-        });
-        relationship.partner._object = parnterNode;
-        parnterNode.set({ left, top });
-        this.canvas.add(parnterNode);
+        if (relationship.partner) {
+          const parnterNode = await this._createNode(
+            relationship.partner.name,
+            relationship.partner.image
+          );
+          parnterNode.on('mousedown', () => {
+            relationship.partner?.onClick &&
+              relationship.partner.onClick(relationship.partner);
+          });
+          relationship.partner._object = parnterNode;
+          parnterNode.set({ left, top });
+          this.canvas.add(parnterNode);
+        }
 
         // Create children
         if (relationship.children && relationship.children.length > 0) {
@@ -325,7 +337,7 @@ export default class FamilyTree {
       generations[node.generation as number].push(
         ...node.relationships.map(
           (relationship: Relation) =>
-            relationship.partner._object as fabric.Group
+            relationship.partner?._object as fabric.Group
         )
       );
     node.relationships &&
@@ -347,9 +359,11 @@ export default class FamilyTree {
         generation.length * generation[0].getBoundingRect().width +
         (generation.length - 1) * minimumDistanceBetweenNodes;
       let left = canvasCenter.left - generationWidth / 2;
-      generation.forEach((node: fabric.Group) => {
-        node.set({ left });
-        left += node.getBoundingRect().width + minimumDistanceBetweenNodes;
+      generation.forEach((node: fabric.Group | undefined) => {
+        node && node.set({ left });
+        left +=
+          (node ? node.getBoundingRect().width : 0) +
+          minimumDistanceBetweenNodes;
       });
     });
   };
@@ -358,12 +372,14 @@ export default class FamilyTree {
     const relationships = node.relationships;
     if (relationships && relationships.length > 0) {
       for (const relationship of relationships) {
-        relationship._relation = this._drawPartnerLine(
-          node._object as fabric.Group,
-          relationship.partner._object as fabric.Group,
-          relationship.isMarried
-        );
-        this.canvas.add(relationship._relation);
+        if (relationship.partner) {
+          relationship._relation = this._drawPartnerLine(
+            node._object as fabric.Group,
+            relationship.partner._object as fabric.Group,
+            relationship.isMarried as boolean
+          );
+          this.canvas.add(relationship._relation);
+        }
         if (relationship.children && relationship.children.length > 0) {
           for (const child of relationship.children) {
             this._drawPartnerRelations(child);
@@ -376,18 +392,20 @@ export default class FamilyTree {
   private _drawChildRelations = (node: Node) => {
     const relationships = node.relationships;
     if (relationships && relationships.length > 0) {
-      for (const partner of relationships) {
-        if (partner.children && partner.children.length > 0) {
-          partner._parentLine = this._drawParentLine(
-            partner._relation as fabric.Line,
-            relationships.indexOf(partner) === 0
+      for (const relationship of relationships) {
+        if (relationship.children && relationship.children.length > 0) {
+          relationship._parentLine = this._drawParentLine(
+            relationship._relation ? relationship._relation : node,
+            relationship.partner
+              ? relationships.indexOf(relationship) === 0
+              : undefined
           );
-          this.canvas.add(partner._parentLine);
-          for (const child of partner.children) {
+          this.canvas.add(relationship._parentLine);
+          for (const child of relationship.children) {
             this._drawChildRelations(child);
             this._drawChildLine(
               child as Node,
-              partner._parentLine as fabric.Line
+              relationship._parentLine as fabric.Line
             );
           }
         }
