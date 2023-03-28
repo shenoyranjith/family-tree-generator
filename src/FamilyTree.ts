@@ -150,7 +150,7 @@ export default class FamilyTree {
   };
 
   private _createNode = async (text: string, imageUrl: string | undefined) => {
-    imageUrl = imageUrl || imgUrl;
+    imageUrl = imageUrl || (imgUrl as string);
     let imageObject = new fabric.Image(imageUrl, {
       lockScalingFlip: true,
       crossOrigin: 'Anonymous',
