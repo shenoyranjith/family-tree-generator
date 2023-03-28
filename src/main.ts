@@ -18,6 +18,18 @@ const root = {
           generation: 1,
           partners: [
             {
+              id: 25,
+              name: 'Test25',
+              isMarried: true,
+              children: [
+                {
+                  id: 26,
+                  name: 'Test26',
+                  generation: 2,
+                },
+              ],
+            },
+            {
               id: 4,
               name: 'Test4',
               isMarried: true,
@@ -25,6 +37,30 @@ const root = {
                 {
                   id: 5,
                   name: 'Test5',
+                  generation: 2,
+                },
+              ],
+            },
+            {
+              id: 27,
+              name: 'Test27',
+              isMarried: false,
+              children: [
+                {
+                  id: 28,
+                  name: 'Test28',
+                  generation: 2,
+                },
+              ],
+            },
+            {
+              id: 29,
+              name: 'Test29',
+              isMarried: false,
+              children: [
+                {
+                  id: 30,
+                  name: 'Test30',
                   generation: 2,
                 },
               ],
@@ -38,6 +74,8 @@ const root = {
           partners: [
             {
               id: 7,
+              image:
+                'https://png.pngtree.com/png-vector/20220709/ourmid/pngtree-businessman-user-avatar-wearing-suit-with-red-tie-png-image_5809521.png',
               name: 'Test7',
               isMarried: true,
               children: [
@@ -103,6 +141,8 @@ const root = {
                 {
                   id: 17,
                   name: 'Test17',
+                  image:
+                    'https://png.pngtree.com/png-vector/20220709/ourmid/pngtree-businessman-user-avatar-wearing-suit-with-red-tie-png-image_5809521.png',
                   generation: 2,
                   partners: [
                     {
