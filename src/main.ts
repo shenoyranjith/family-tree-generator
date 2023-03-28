@@ -218,7 +218,7 @@ const root = {
 } as Node;
 const familyTree = new FamilyTree(root, {
   id: 'canvas',
-  width: 1000,
-  height: 1000,
+  width: 1920,
+  height: 1080,
 });
 familyTree.drawTree();
