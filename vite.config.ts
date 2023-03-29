@@ -2,8 +2,9 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
+
 // https://vitejs.dev/guide/build.html#library-mode
-export default defineConfig({
+export default defineConfig((configEnv) => ({
   build: {
     lib: {
       entry: resolve(__dirname, 'src/main.ts'),
@@ -24,4 +25,4 @@ export default defineConfig({
     },
   },
   plugins: [dts()],
-});
+}));
