@@ -31,7 +31,7 @@ Vanilla Typescript with [fabricjs](http://fabricjs.com/) and packaged using [Vit
 ### Installation
 
 ```
-npm install npm@family-tree-generator
+npm install family-tree-generator
 ```
 
 ## Usage
