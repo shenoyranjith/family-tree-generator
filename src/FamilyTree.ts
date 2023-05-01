@@ -31,6 +31,18 @@ interface Canvas extends fabric.Canvas {
   lastPosY: number;
 }
 
+interface NodeGroupOptions extends fabric.IGroupOptions {
+  isNode: boolean;
+}
+
+class NodeGroup extends fabric.Group {
+  declare isNode: boolean;
+  constructor(objects: fabric.Object[], options: NodeGroupOptions) {
+    super(objects, options);
+    this.isNode = options.isNode;
+  }
+}
+
 interface Options {
   id: string;
   width: number;
@@ -60,6 +72,8 @@ export default class FamilyTree {
       height: options.height,
       hoverCursor: 'pointer',
       selection: false,
+      allowTouchScrolling: true,
+      enableRetinaScaling: false,
     });
   };
 
@@ -86,19 +100,31 @@ export default class FamilyTree {
       if (opt.target) {
         return;
       }
-      var evt = opt.e;
+      let isTouch = opt.e.type === 'touchstart';
+      var evt = opt.e as MouseEvent | TouchEvent;
       this.isDragging = true;
       this.setCursor('grabbing');
-      this.lastPosX = evt.clientX;
-      this.lastPosY = evt.clientY;
+      this.lastPosX = isTouch
+        ? (evt as TouchEvent).touches[0].clientX
+        : (evt as MouseEvent).clientX;
+      this.lastPosY = isTouch
+        ? (evt as TouchEvent).touches[0].clientY
+        : (evt as MouseEvent).clientY;
     });
     this.canvas.on('mouse:move', function (this: Canvas, opt) {
       if (this.isDragging) {
-        const e = opt.e;
+        let isTouch = opt.e.type === 'touchmove';
+        var evt = opt.e as MouseEvent | TouchEvent;
+        let clientX = isTouch
+          ? (evt as TouchEvent).touches[0].clientX
+          : (evt as MouseEvent).clientX;
+        let clientY = isTouch
+          ? (evt as TouchEvent).touches[0].clientY
+          : (evt as MouseEvent).clientY;
         const zoom = this.getZoom();
         var vpt = this.viewportTransform as number[];
-        vpt[4] += e.clientX - this.lastPosX;
-        vpt[5] += e.clientY - this.lastPosY;
+        vpt[4] += clientX - this.lastPosX;
+        vpt[5] += clientY - this.lastPosY;
 
         // prevent infinite pan
         if (vpt[4] > this.getWidth()) {
@@ -114,8 +140,8 @@ export default class FamilyTree {
           vpt[5] = -(this.getHeight() * zoom);
         }
         this.requestRenderAll();
-        this.lastPosX = e.clientX;
-        this.lastPosY = e.clientY;
+        this.lastPosX = clientX;
+        this.lastPosY = clientY;
       }
     });
     this.canvas.on('mouse:up', function (this: Canvas) {
@@ -180,10 +206,11 @@ export default class FamilyTree {
       top: imageObject.getScaledHeight() / 2 + fontSize,
     });
 
-    const group = new fabric.Group([imageObject, textObject], {
+    const group = new NodeGroup([imageObject, textObject], {
       originX: 'center',
       originY: 'center',
       selectable: false,
+      isNode: true,
     });
     return group;
   };
@@ -415,7 +442,7 @@ export default class FamilyTree {
 
   private _bringNodesToFront = () => {
     this.canvas.getObjects().forEach((object: fabric.Object) => {
-      if (object instanceof fabric.Group) {
+      if (object instanceof NodeGroup) {
         object.bringToFront();
       }
     });
