@@ -39,6 +39,7 @@ The ```FamilyTree``` constructor requires you to pass the root node along with f
 - <strong>id</strong>: ID of the HTML canvas element in the DOM on which the fabric canvas must be initialized.
 - <strong>width</strong>: The canvas's width.
 - <strong>height</strong>: The canvas's height.
+- <strong>boundToParentSize</strong>: Sets the height and with to the parent elements clientHeight and clientWidth respectively.
 
 ```
 import FamilyTree, { Node } from './FamilyTree';
@@ -310,7 +311,8 @@ familyTree.canvas.renderAll();
 
 ### Zoom and pan
 - Use the mouse wheel to zoom in and out when hovering over the canvas.
-- To pan, just hold down the left mouse button and move the mouse around on the canvas. 
+- To pan, just hold down the left mouse button and move the mouse around on the canvas or on touch screen, use pinch zoom.
+- To reset the zoom and pan back to center, double click the left mouse button or long press on touch screen on the canvas.   
 
 ## License
 

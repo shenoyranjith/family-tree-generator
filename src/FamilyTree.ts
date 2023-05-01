@@ -29,6 +29,7 @@ interface Canvas extends fabric.Canvas {
   isDragging: boolean;
   lastPosX: number;
   lastPosY: number;
+  zoomStartScale: number;
 }
 
 interface NodeGroupOptions extends fabric.IGroupOptions {
@@ -47,6 +48,7 @@ interface Options {
   id: string;
   width: number;
   height: number;
+  boundToParentSize?: boolean;
 }
 
 const lineStyles = {
@@ -67,21 +69,37 @@ export default class FamilyTree {
   }
 
   private _createCanvas = (options: Options) => {
+    const canvasEle = document.getElementById(options.id);
+    const parentEle = canvasEle?.parentElement;
+    let height =
+      parentEle != undefined &&
+      options.height > parentEle.clientHeight &&
+      options.boundToParentSize
+        ? parentEle.clientHeight
+        : options.height;
+    let width =
+      parentEle != undefined &&
+      options.width > parentEle.clientWidth &&
+      options.boundToParentSize
+        ? parentEle.clientWidth
+        : options.width;
     return new fabric.Canvas(options.id, {
-      width: options.width,
-      height: options.height,
+      width: width,
+      height: height,
       hoverCursor: 'pointer',
       selection: false,
       allowTouchScrolling: true,
       enableRetinaScaling: false,
+      isDrawingMode: false,
     });
   };
 
   private _setupCanvas = () => {
     // Setup zoom
     // Set maximum zoom as 2000% and minimum as 10%
-    this.canvas.on('mouse:wheel', function (this: Canvas, opt) {
-      const delta = opt.e.deltaY;
+    function mouseZoom(this: Canvas, opt: fabric.IEvent) {
+      const evt = opt.e as WheelEvent;
+      const delta = evt.deltaY;
       let zoom = this.getZoom();
       zoom *= 0.999 ** delta;
       if (zoom > 20) {
@@ -90,18 +108,55 @@ export default class FamilyTree {
       if (zoom < 0.1) {
         zoom = 0.1;
       }
-      this.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+      this.zoomToPoint({ x: evt.offsetX, y: evt.offsetY }, zoom);
       opt.e.preventDefault();
       opt.e.stopPropagation();
-    });
+    }
+    function touchZoom(this: Canvas, opt: any) {
+      const evt = opt.e as TouchEvent;
+      // Handle zoom only if 2 fingers are touching the screen
+      if (evt.touches && evt.touches.length == 2) {
+        this.isDragging = false;
+        let point1 = new fabric.Point(
+          evt.touches[0].clientX,
+          evt.touches[0].clientY
+        );
+        let point2 = new fabric.Point(
+          evt.touches[1].clientX,
+          evt.touches[1].clientY
+        );
+        let midPoint = point1.midPointFrom(point2);
+        if (opt.self.state == 'start') {
+          this.zoomStartScale = this.getZoom();
+        }
+        let delta = this.zoomStartScale * opt.self.scale;
+        console.log(midPoint);
+        this.zoomToPoint(midPoint, delta);
+        this.isDragging = true;
+      }
+    }
+    function resetCanvas(this: Canvas) {
+      var vpt = this.viewportTransform as number[];
+      vpt[4] = this.getCenter().left - minimumDistanceBetweenNodes;
+      vpt[5] = minimumDistanceBetweenNodes;
+      this.setViewportTransform(vpt);
+      this.setZoom(1);
+      this.requestRenderAll();
+    }
+
+    this.canvas.on('mouse:wheel', mouseZoom);
+    this.canvas.on('touch:gesture', touchZoom);
+    this.canvas.on('touch:longpress', resetCanvas);
+    this.canvas.on('mouse:dblclick', resetCanvas);
 
     // Setup pan by dragging on mouse press and hold
     this.canvas.on('mouse:down', function (this: Canvas, opt) {
       if (opt.target) {
         return;
       }
-      let isTouch = opt.e.type === 'touchstart';
       var evt = opt.e as MouseEvent | TouchEvent;
+      let isTouch =
+        evt.type === 'touchstart' && (evt as TouchEvent).touches.length === 1;
       this.isDragging = true;
       this.setCursor('grabbing');
       this.lastPosX = isTouch
