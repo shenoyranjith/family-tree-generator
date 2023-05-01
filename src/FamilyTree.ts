@@ -1,4 +1,3 @@
-import { fabric } from 'fabric';
 import imgUrl from './assets/images/profile_img.png';
 
 const fontSize = 18;
