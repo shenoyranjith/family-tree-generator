@@ -1,3 +1,4 @@
+import { fabric } from 'fabric';
 import imgUrl from './assets/images/profile_img.png';
 
 const fontSize = 18;
@@ -9,8 +10,8 @@ export interface Relation {
   partner: Node | undefined;
   isMarried: boolean | undefined;
   children: Node[];
-  _relation?: any; // fabric.Line
-  _parentLine?: any; // fabric.Line
+  _relation?: fabric.Line;
+  _parentLine?: fabric.Line;
 }
 
 export interface Node {
@@ -20,19 +21,35 @@ export interface Node {
   generation?: number;
   relationships: Relation[];
   onClick?: (node: Node) => void;
-  _object?: any; // fabric.Group
-  _childLine: any; // fabric.Group
+  _object?: fabric.Group;
+  _childLine: fabric.Group;
 }
 
-// @ts-ignore
-const NodeGroup = fabric.util.createClass(fabric.Group, {
-  type: 'nodeGroup',
-  initialize: function (objects: any[], options: any) {
-    options || (options = {});
-    this.callSuper('initialize', objects, options);
-    this.set('isNode', true);
-  },
-});
+interface Canvas extends fabric.Canvas {
+  isDragging: boolean;
+  lastPosX: number;
+  lastPosY: number;
+  zoomStartScale: number;
+}
+
+interface NodeGroupOptions extends fabric.IGroupOptions {
+  isNode: boolean;
+}
+
+class NodeGroup extends fabric.Group {
+  declare isNode: boolean;
+  constructor(objects: fabric.Object[], options: NodeGroupOptions) {
+    super(objects, options);
+    this.isNode = options.isNode;
+  }
+}
+
+interface Options {
+  id: string;
+  width: number;
+  height: number;
+  boundToParentSize?: boolean;
+}
 
 const lineStyles = {
   stroke: 'black',
@@ -43,15 +60,15 @@ const lineStyles = {
 
 export default class FamilyTree {
   private declare root: Node;
-  declare canvas: any;
+  declare canvas: fabric.Canvas;
 
-  constructor(root: Node, options: any) {
+  constructor(root: Node, options: Options) {
     this.root = root;
     this.canvas = this._createCanvas(options);
     this._setupCanvas();
   }
 
-  private _createCanvas = (options: any) => {
+  private _createCanvas = (options: Options) => {
     const canvasEle = document.getElementById(options.id);
     const parentEle = canvasEle?.parentElement;
     let height =
@@ -66,7 +83,6 @@ export default class FamilyTree {
       options.boundToParentSize
         ? parentEle.clientWidth
         : options.width;
-    // @ts-ignore
     return new fabric.Canvas(options.id, {
       width: width,
       height: height,
@@ -81,7 +97,7 @@ export default class FamilyTree {
   private _setupCanvas = () => {
     // Setup zoom
     // Set maximum zoom as 2000% and minimum as 10%
-    function mouseZoom(this: any, opt: any) {
+    function mouseZoom(this: Canvas, opt: fabric.IEvent) {
       const evt = opt.e as WheelEvent;
       const delta = evt.deltaY;
       let zoom = this.getZoom();
@@ -96,17 +112,15 @@ export default class FamilyTree {
       opt.e.preventDefault();
       opt.e.stopPropagation();
     }
-    function touchZoom(this: any, opt: any) {
+    function touchZoom(this: Canvas, opt: any) {
       const evt = opt.e as TouchEvent;
       // Handle zoom only if 2 fingers are touching the screen
       if (evt.touches && evt.touches.length == 2) {
         this.isDragging = false;
-        // @ts-ignore
         let point1 = new fabric.Point(
           evt.touches[0].clientX,
           evt.touches[0].clientY
         );
-        // @ts-ignore
         let point2 = new fabric.Point(
           evt.touches[1].clientX,
           evt.touches[1].clientY
@@ -121,7 +135,7 @@ export default class FamilyTree {
         this.isDragging = true;
       }
     }
-    function resetCanvas(this: any) {
+    function resetCanvas(this: Canvas) {
       var vpt = this.viewportTransform as number[];
       vpt[4] = this.getCenter().left - minimumDistanceBetweenNodes;
       vpt[5] = minimumDistanceBetweenNodes;
@@ -136,7 +150,7 @@ export default class FamilyTree {
     this.canvas.on('mouse:dblclick', resetCanvas);
 
     // Setup pan by dragging on mouse press and hold
-    this.canvas.on('mouse:down', function (this: any, opt: any) {
+    this.canvas.on('mouse:down', function (this: Canvas, opt) {
       if (opt.target) {
         return;
       }
@@ -152,7 +166,7 @@ export default class FamilyTree {
         ? (evt as TouchEvent).touches[0].clientY
         : (evt as MouseEvent).clientY;
     });
-    this.canvas.on('mouse:move', function (this: any, opt: any) {
+    this.canvas.on('mouse:move', function (this: Canvas, opt) {
       if (this.isDragging) {
         let isTouch = opt.e.type === 'touchmove';
         var evt = opt.e as MouseEvent | TouchEvent;
@@ -185,7 +199,7 @@ export default class FamilyTree {
         this.lastPosY = clientY;
       }
     });
-    this.canvas.on('mouse:up', function (this: any) {
+    this.canvas.on('mouse:up', function (this: Canvas) {
       // on mouse up we want to recalculate new interaction
       // for all objects, so we call setViewportTransform
       this.setViewportTransform(this.viewportTransform as number[]);
@@ -194,13 +208,13 @@ export default class FamilyTree {
   };
 
   private _setImageSrc = async (
-    imageObject: any,
+    imageObject: fabric.Image,
     imageUrl: string
-  ): Promise<any> => {
+  ): Promise<fabric.Image> => {
     return new Promise((resolve, reject) => {
       imageObject.setSrc(
         imageUrl,
-        function (img: any) {
+        function (img: fabric.Image) {
           img.set({
             originX: 'center',
             originY: 'center',
@@ -218,7 +232,6 @@ export default class FamilyTree {
 
   private _createNode = async (text: string, imageUrl: string | undefined) => {
     imageUrl = imageUrl || (imgUrl as string);
-    // @ts-ignore
     let imageObject = new fabric.Image(imageUrl, {
       lockScalingFlip: true,
       crossOrigin: 'Anonymous',
@@ -227,7 +240,6 @@ export default class FamilyTree {
     imageObject.scale((nodeRadius * 2) / (imageObject.width as number));
 
     // Clip image to circle
-    // @ts-ignore
     const clipPath = new fabric.Circle({
       radius: nodeRadius,
       originX: 'center',
@@ -241,7 +253,6 @@ export default class FamilyTree {
       clipPath: clipPath,
     });
 
-    // @ts-ignore
     const textObject = new fabric.Text(text, {
       fontSize: fontSize,
       originX: 'center',
@@ -259,10 +270,13 @@ export default class FamilyTree {
     return group;
   };
 
-  private _drawPartnerLine = (node1: any, node2: any, isMarried: boolean) => {
+  private _drawPartnerLine = (
+    node1: fabric.Group,
+    node2: fabric.Group,
+    isMarried: boolean
+  ) => {
     const node1Center = node1.getCenterPoint();
     const node2Center = node2.getCenterPoint();
-    // @ts-ignore
     const line = new fabric.Line(
       [
         node1Center.x + nodeRadius,
@@ -279,16 +293,14 @@ export default class FamilyTree {
   };
 
   private _drawParentLine = (
-    parent: any | Node,
+    parent: fabric.Line | Node,
     isFirst: boolean | undefined
   ) => {
-    let parentLineOrigin: any;
-    // @ts-ignore
+    let parentLineOrigin: fabric.Point;
     if (parent instanceof fabric.Line) {
       parentLineOrigin = parent.getCenterPoint();
       if (!isFirst) {
         parentLineOrigin = parentLineOrigin.add(
-          // @ts-ignore
           new fabric.Point(
             ((parent.x2 as number) - (parent.x1 as number)) / 2 - nodeRadius,
             0
@@ -296,9 +308,8 @@ export default class FamilyTree {
         );
       }
     } else {
-      parentLineOrigin = parent._object?.getCenterPoint();
+      parentLineOrigin = parent._object?.getCenterPoint() as fabric.Point;
     }
-    // @ts-ignore
     const line = new fabric.Line(
       [
         parentLineOrigin.x,
@@ -308,18 +319,16 @@ export default class FamilyTree {
       ],
       {
         ...lineStyles,
-        // @ts-ignore
         strokeDashArray: parent instanceof fabric.Line ? [] : [5, 5],
       }
     );
     return line;
   };
 
-  private _drawChildLine = (child: Node, parentLine: any) => {
-    const childObject = child._object;
+  private _drawChildLine = (child: Node, parentLine: fabric.Line) => {
+    const childObject = child._object as fabric.Group;
     const childCenter = childObject.getCenterPoint();
     const strokeWidth = parentLine.strokeWidth ? parentLine.strokeWidth : 0;
-    // @ts-ignore
     const horizontalLine = new fabric.Line(
       [
         (parentLine.x2 as number) +
@@ -330,7 +339,6 @@ export default class FamilyTree {
       ],
       lineStyles
     );
-    // @ts-ignore
     const verticalLine = new fabric.Line(
       [
         horizontalLine.x2 as number,
@@ -340,7 +348,6 @@ export default class FamilyTree {
       ],
       lineStyles
     );
-    // @ts-ignore
     child._childLine = new fabric.Group([horizontalLine, verticalLine], {
       selectable: false,
     });
@@ -402,16 +409,17 @@ export default class FamilyTree {
     }
   };
 
-  private _groupNodes = (generations: [any][], node: Node) => {
+  private _groupNodes = (generations: [fabric.Group][], node: Node) => {
     if (generations[node.generation as number]) {
-      generations[node.generation as number].push(node._object);
+      generations[node.generation as number].push(node._object as fabric.Group);
     } else {
-      generations[node.generation as number] = [node._object];
+      generations[node.generation as number] = [node._object as fabric.Group];
     }
     node.relationships &&
       generations[node.generation as number].push(
         ...node.relationships.map(
-          (relationship: Relation) => relationship.partner?._object
+          (relationship: Relation) =>
+            relationship.partner?._object as fabric.Group
         )
       );
     node.relationships &&
@@ -424,16 +432,16 @@ export default class FamilyTree {
   };
 
   private _positionNodes = () => {
-    let generations: [any][] = [];
+    let generations: [fabric.Group][] = [];
     this._groupNodes(generations, this.root);
     const canvasCenter = this.canvas.getCenter();
 
-    generations.forEach((generation: any[]) => {
+    generations.forEach((generation: fabric.Group[]) => {
       const generationWidth =
         generation.length * generation[0].getBoundingRect().width +
         (generation.length - 1) * minimumDistanceBetweenNodes;
       let left = canvasCenter.left - generationWidth / 2;
-      generation.forEach((node: any | undefined) => {
+      generation.forEach((node: fabric.Group | undefined) => {
         node && node.set({ left });
         left +=
           (node ? node.getBoundingRect().width : 0) +
@@ -448,8 +456,8 @@ export default class FamilyTree {
       for (const relationship of relationships) {
         if (relationship.partner) {
           relationship._relation = this._drawPartnerLine(
-            node._object,
-            relationship.partner._object,
+            node._object as fabric.Group,
+            relationship.partner._object as fabric.Group,
             relationship.isMarried as boolean
           );
           this.canvas.add(relationship._relation);
@@ -477,7 +485,10 @@ export default class FamilyTree {
           this.canvas.add(relationship._parentLine);
           for (const child of relationship.children) {
             this._drawChildRelations(child);
-            this._drawChildLine(child as Node, relationship._parentLine);
+            this._drawChildLine(
+              child as Node,
+              relationship._parentLine as fabric.Line
+            );
           }
         }
       }
@@ -485,7 +496,7 @@ export default class FamilyTree {
   };
 
   private _bringNodesToFront = () => {
-    this.canvas.getObjects().forEach((object: any) => {
+    this.canvas.getObjects().forEach((object: fabric.Object) => {
       if (object instanceof NodeGroup) {
         object.bringToFront();
       }
